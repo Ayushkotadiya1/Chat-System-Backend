@@ -14,7 +14,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'https://devserver-main--fancy-sundae-1cfb4f.netlify.app/',
+    origin: process.env.FRONTEND_URL || 'https://aimbrill-chat-system.netlify.app/',
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -25,7 +25,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5174',
-  'https://devserver-main--fancy-sundae-1cfb4f.netlify.app',
+  'https://aimbrill-chat-system.netlify.app',
   process.env.FRONTEND_URL
 ].filter(Boolean); // Remove undefined values
 
