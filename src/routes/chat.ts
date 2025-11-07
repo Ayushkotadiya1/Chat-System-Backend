@@ -42,7 +42,7 @@ router.post('/upload', upload.single('file'), (req: Request, res: Response) => {
   if (!file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const url = `${process.env.BACKEND_URL || 'http://localhost:5001'}/uploads/${file.filename}`;
+  const url = `${process.env.BACKEND_URL || 'https://chat-system-backend-xn79.onrender.com'}/uploads/${file.filename}`;
   const type = file.mimetype;
   return res.json({ url, type });
 });
