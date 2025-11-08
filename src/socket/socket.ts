@@ -6,7 +6,7 @@ import {
   updateSessionStatus,
   getSession,
 } from '../services/chatService';
-import Groq from 'groq-sdk';
+import fetch from 'node-fetch';
 
 /**
  * Chat message interface
@@ -111,79 +111,59 @@ export function setupSocketIO(io: Server): void {
         try {
           const session = await getSession(sessionId);
           const aiEnabled = (session as any)?.ai_enabled;
-          const groqApiKey = process.env.GROQ_API_KEY;
-          console.log('AI Enabled:', aiEnabled, 'Groq Key:', groqApiKey ? 'Present' : 'Missing');
-
-          if (aiEnabled && groqApiKey) {
-            // Notify user that AI is typing
+          const openaiKey = process.env.OPENAI_API_KEY;
+          console.log(aiEnabled, openaiKey);
+          if (aiEnabled && openaiKey) {
+            // Notify user typing
             io.to(`session:${sessionId}`).emit('typing:admin');
 
-            // Initialize Groq client
-            const groq = new Groq({
-              apiKey: groqApiKey,
+            const prompt = `You are a helpful support assistant. Reply concisely to the user. User message: ${message}`;
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${openaiKey}`,
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.2,
+                max_tokens: 200,
+              }),
             });
-
-            const prompt = `You are a helpful and friendly customer support assistant. Reply concisely and professionally to the user's message. Keep responses brief and to the point. User message: ${message}`;
-
-            try {
-              // Call Groq API with latest model
-              const completion = await groq.chat.completions.create({
-                messages: [
-                  {
-                    role: 'system',
-                    content: 'You are a helpful customer support assistant. Provide concise, professional, and friendly responses.',
-                  },
-                  {
-                    role: 'user',
-                    content: prompt,
-                  },
-                ],
-                model: 'llama-3.1-70b-versatile', // Latest Groq model
-                temperature: 0.7,
-                max_tokens: 300,
-                top_p: 1,
-                stream: false,
+            if (!response.ok) {
+              throw new Error(`OpenAI API error: ${response.status}`);
+            }
+            const json = (await response.json()) as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            console.log(json);
+            const aiText = json?.choices && json.choices.length > 0
+              ? json.choices[0]?.message?.content?.trim?.()
+              : undefined;
+            console.log(aiText);
+            if (aiText) {
+              const aiSaved = await createMessage({
+                sessionId,
+                message: aiText,
+                sender: 'AI',
+                senderType: 'admin',
+                isAi: true,
               });
 
-              const aiText = completion.choices[0]?.message?.content?.trim();
-              console.log('Groq AI Response:', aiText);
+              const aiMessageData = {
+                sessionId,
+                message: aiSaved.message,
+                sender: 'AI',
+                senderType: 'admin' as const,
+                isAi: true,
+                timestamp: (aiSaved as any).created_at.toISOString(),
+              };
 
-              if (aiText) {
-                const aiSaved = await createMessage({
-                  sessionId,
-                  message: aiText,
-                  sender: 'AI',
-                  senderType: 'admin',
-                  isAi: true,
-                });
-
-                const aiMessageData = {
-                  sessionId,
-                  message: aiSaved.message,
-                  sender: 'AI',
-                  senderType: 'admin' as const,
-                  isAi: true,
-                  timestamp: (aiSaved as any).created_at.toISOString(),
-                };
-
-                // Send AI reply to the user session and notify admins
-                io.to(`session:${sessionId}`).emit('message:received', aiMessageData);
-                io.to('admin').emit('message:new', aiMessageData);
-                io.to(`session:${sessionId}`).emit('typing:admin:stop');
-              } else {
-                throw new Error('Empty response from Groq API');
-              }
-            } catch (groqError: any) {
-              console.error('Groq API error:', groqError);
-              // Stop typing indicator on error
+              // Send AI reply to the user session and notify admins
+              io.to(`session:${sessionId}`).emit('message:received', aiMessageData);
+              io.to('admin').emit('message:new', aiMessageData);
               io.to(`session:${sessionId}`).emit('typing:admin:stop');
-
-              // Optionally send an error message to user
-              if (groqError.status === 429) {
-                console.error('Groq API rate limit exceeded');
-              } else if (groqError.status === 401) {
-                console.error('Invalid Groq API key');
-              }
             }
           }
         } catch (err) {
