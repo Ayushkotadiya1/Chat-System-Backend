@@ -26,7 +26,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'https://aimbrill-chat-system.netlify.app',
-  'https://ayush-chat-system.netlify.app'
+  'https://ayush-chat-system.netlify.app',
   process.env.FRONTEND_URL
 ].filter(Boolean); // Remove undefined values
 
